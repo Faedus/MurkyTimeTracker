@@ -27,12 +27,12 @@
             border: 1px solid rgba(255,255,255,0.05); width: 340px;
             background: rgba(255,255,255,0.01);
         }
-        
+
         /* TURN CIRCLE */
         .stamina-container { position: relative; width: 140px; height: 140px; margin: 0 auto 30px; }
         .stamina-svg { transform: rotate(-90deg); filter: drop-shadow(0 0 8px var(--watch-color)); }
         circle { fill: none; stroke-width: 10; cx: 70; cy: 70; r: 60; }
-        .stamina-bg { stroke: rgba(255,255,255,0.1); } /* Muted unfilled circle */
+        .stamina-bg { stroke: rgba(255,255,255,0.1); }
         .stamina-fill { 
             stroke: var(--watch-color); 
             stroke-dasharray: 377; 
@@ -51,20 +51,18 @@
         
         .seg { 
             height: 14px; 
-            background: rgba(255, 255, 255, 0.05); /* Unfilled background */
-            border: 1px solid rgba(255, 255, 255, 0.1); /* Muted outline */
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 2px; 
             transition: all 0.4s ease; 
         }
 
-        /* The Filled State */
         .seg.active { 
             background: var(--watch-color); 
             border-color: var(--watch-color);
             box-shadow: 0 0 10px var(--watch-color); 
         }
 
-        /* The "Current" Segment pulsing (Optional flavor) */
         .seg.current {
             border-color: var(--watch-color);
             background: rgba(255, 255, 255, 0.15);
@@ -118,7 +116,11 @@
             const m = now.getMinutes();
             const s = now.getSeconds();
 
+            // WATCH CALCULATION
+            // 0-5=Night, 6-11=Morning, 12-17=Afternoon, 18-23=Evening
             const watchIdx = Math.floor(h / 6);
+            
+            // TURN CALCULATION (Strict 1-18 reset every 6 hours)
             const minsIntoWatch = ((h % 6) * 60) + m;
             const turnNum = Math.floor(minsIntoWatch / 10) + 1; 
 
@@ -126,35 +128,31 @@
             const colorValue = `var(--${watchColorKeys[watchIdx]})`;
             root.style.setProperty('--watch-color', colorValue);
 
-            // Turn Circle Progress
+            // Turn Circle Progress (Stamina)
             const secsIntoTurn = (m % 10) * 60 + s;
             const turnPercent = secsIntoTurn / 600;
             document.getElementById('stamina-circle').style.strokeDashoffset = 377 - (377 * turnPercent);
 
-            // Labels
+            // UI Labels
             document.getElementById('watch-label').innerText = watchNames[watchIdx];
             document.getElementById('turn-label').innerText = "T-" + turnNum;
-            document.getElementById('clock').innerText = now.toLocaleTimeString();
+            document.getElementById('clock').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
             document.title = `T-${turnNum} | ${watchNames[watchIdx].split(' ')[0]}`;
 
-            // --- SEGMENT LOGIC FIX ---
+            // Segment Grid Update
             const segments = document.querySelectorAll('.seg');
             segments.forEach((seg, i) => {
-                const segmentIndex = i + 1; // 1 to 18
-                
+                const segmentIndex = i + 1;
                 if (segmentIndex < turnNum) {
-                    // Fully completed turns
                     seg.className = 'seg active';
                 } else if (segmentIndex === turnNum) {
-                    // The turn you are currently in
                     seg.className = 'seg current';
                 } else {
-                    // Future turns in this watch
                     seg.className = 'seg';
                 }
             });
 
-            // Day Bar
+            // Global Day Progress
             const totalSecs = (h * 3600) + (m * 60) + s;
             document.getElementById('day-bar').style.width = (totalSecs / 86400 * 100) + "%";
         }
