@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="manifest" href="data:application/manifest+json,{%22name%22:%22MurkyTime%22,%22short_name%22:%22Murky%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%230a0a0a%22,%22theme_color%22:%22%230a0a0a%22}">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MurkyTime Navigator</title>
+    <style>
+        :root {
+            --morning: #fff9c4; /* Pale Yellow */
+            --afternoon: #ffc107; /* Gold */
+            --evening: #ff5252; /* Red */
+            --night: #3f51b5; /* Indigo */
+            --bg-dark: #0a0a0a;
+            --watch-color: var(--morning);
+        }
+        body { 
+            background: var(--bg-dark);
+            color: white; font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; margin: 0; overflow: hidden;
+        }
+        .dashboard { 
+            text-align: center; padding: 30px; border-radius: 40px; 
+            border: 1px solid rgba(255,255,255,0.1); width: 340px;
+        }
+        
+        /* STAMINA WHEEL (The Turn) */
+        .stamina-container { position: relative; width: 140px; height: 140px; margin: 0 auto 30px; }
+        .stamina-svg { transform: rotate(-90deg); filter: drop-shadow(0 0 5px var(--watch-color)); }
+        circle { fill: none; stroke-width: 10; cx: 70; cy: 70; r: 60; }
+        .stamina-bg { stroke: #222; }
+        .stamina-fill { 
+            stroke: var(--watch-color); 
+            stroke-dasharray: 377; 
+            stroke-dashoffset: 377;
+            stroke-linecap: round;
+            transition: stroke 0.5s ease;
+        }
+        .turn-text { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 1.2rem; font-weight: bold; color: var(--watch-color);
+        }
+
+        /* WATCH SEGMENTS (The Hours) */
+        .watch-title { font-size: 1.5rem; font-weight: 800; text-transform: uppercase; margin-bottom: 20px; color: var(--watch-color); }
+        .segment-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 6px; margin-bottom: 10px; }
+        .seg { height: 12px; background: #222; border-radius: 3px; transition: all 0.4s ease; }
+        .seg.active { background: var(--watch-color); box-shadow: 0 0 10px var(--watch-color); }
+
+        /* DAY PROGRESS */
+        .day-progress-container { width: 100%; height: 4px; background: #222; border-radius: 2px; margin-top: 30px; position: relative; }
+        #day-bar { height: 100%; width: 0%; background: white; opacity: 0.3; border-radius: 2px; }
+        .time-readout { font-family: monospace; font-size: 0.8rem; opacity: 0.4; margin-top: 10px; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard" id="main-ui">
+        <div id="watch-label" class="watch-title">WATCH</div>
+
+        <div class="stamina-container">
+            <svg class="stamina-svg" width="140" height="140">
+                <circle class="stamina-bg"></circle>
+                <circle id="stamina-circle" class="stamina-fill"></circle>
+            </svg>
+            <div id="turn-label" class="turn-text">T-1</div>
+        </div>
+
+        <div class="segment-grid" id="row-1"></div>
+        <div class="segment-grid" id="row-2"></div>
+
+        <div class="day-progress-container">
+            <div id="day-bar"></div>
+        </div>
+        <div id="clock" class="time-readout">00:00:00</div>
+    </div>
+
+    <script>
+        const root = document.documentElement;
+        const watchNames = ["Night Watch", "Morning Watch", "Afternoon Watch", "Evening Watch"];
+        const watchColors = ["indigo", "morning", "afternoon", "evening"];
+        
+        // Generate 18 landscape segments
+        const r1 = document.getElementById('row-1');
+        const r2 = document.getElementById('row-2');
+        for(let i=0; i<18; i++) {
+            const d = document.createElement('div');
+            d.className = 'seg';
+            (i < 9 ? r1 : r2).appendChild(d);
+        }
+
+        function update() {
+            const now = new Date();
+            const h = now.getHours();
+            const m = now.getMinutes();
+            const s = now.getSeconds();
+
+            // 1. Logic
+            const watchIdx = Math.floor(h / 6);
+            const minsIntoWatch = ((h % 6) * 60) + m;
+            const turnNum = Math.floor(minsIntoWatch / 10) + 1; 
+
+            // 2. Color Shift
+            const currentColor = `var(--${watchColors[watchIdx]})`;
+            root.style.setProperty('--watch-color', currentColor);
+
+            // 3. Turn Progress (Stamina Circle)
+            const secsIntoTurn = (m % 10) * 60 + s;
+            const turnPercent = secsIntoTurn / 600;
+            // Circle circumference is ~377 (2 * pi * 60)
+            document.getElementById('stamina-circle').style.strokeDashoffset = 377 - (377 * turnPercent);
+
+            // 4. Update UI Text
+            document.getElementById('watch-label').innerText = watchNames[watchIdx];
+            document.getElementById('turn-label').innerText = "TURN " + turnNum;
+            document.getElementById('clock').innerText = now.toLocaleTimeString();
+
+            // 5. Update Watch Segments
+            const segments = document.querySelectorAll('.seg');
+            segments.forEach((seg, i) => {
+                seg.className = i < (turnNum - 1) ? 'seg active' : 'seg';
+            });
+
+            // 6. Day Progress (0 to 100% of 24h)
+            const totalSecs = (h * 3600) + (m * 60) + s;
+            const dayPercent = (totalSecs / 86400) * 100;
+            document.getElementById('day-bar').style.width = dayPercent + "%";
+        }
+
+        setInterval(update, 1000);
+        update();
+    </script>
+</body>
+</html>
