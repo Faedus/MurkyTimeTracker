@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MurkyTime</title>
+    <title>MurkyTime Tracker</title>
     
     <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22MurkyTime%22,%22short_name%22:%22Murky%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%230a0a0a%22,%22theme_color%22:%22%230a0a0a%22}">
 
     <style>
         :root {
-            --morning: #fff9c4;
-            --afternoon: #ffc107;
-            --evening: #ff5252;
-            --night: #3f51b5;
+            --morning: #fff9c4;   /* Morning Watch: 06:00 - 12:00 */
+            --afternoon: #ffc107; /* Afternoon Watch: 12:00 - 18:00 */
+            --evening: #ff5252;   /* Evening Watch: 18:00 - 00:00 */
+            --night: #3f51b5;     /* Night Watch: 00:00 - 06:00 */
             --bg-dark: #0a0a0a;
             --watch-color: var(--morning);
         }
@@ -21,15 +21,16 @@
             color: white; font-family: 'Segoe UI', sans-serif;
             display: flex; justify-content: center; align-items: center; 
             height: 100vh; margin: 0; overflow: hidden;
+            -webkit-app-region: drag;
         }
         .dashboard { 
             text-align: center; padding: 30px; border-radius: 40px; 
             border: 1px solid rgba(255,255,255,0.05); width: 340px;
             background: rgba(255,255,255,0.01);
+            user-select: none;
         }
 
-        /* TURN CIRCLE */
-        .stamina-container { position: relative; width: 140px; height: 140px; margin: 0 auto 30px; }
+        .stamina-container { position: relative; width: 140px; height: 140px; margin: 0 auto 30px; -webkit-app-region: no-drag; }
         .stamina-svg { transform: rotate(-90deg); filter: drop-shadow(0 0 8px var(--watch-color)); }
         circle { fill: none; stroke-width: 10; cx: 70; cy: 70; r: 60; }
         .stamina-bg { stroke: rgba(255,255,255,0.1); }
@@ -45,8 +46,7 @@
             font-size: 1.2rem; font-weight: bold; color: var(--watch-color);
         }
 
-        /* WATCH SEGMENTS */
-        .watch-title { font-size: 1.4rem; font-weight: 800; text-transform: uppercase; margin-bottom: 20px; color: var(--watch-color); }
+        .watch-title { font-size: 1.4rem; font-weight: 800; text-transform: uppercase; margin-bottom: 20px; color: var(--watch-color); letter-spacing: 2px; }
         .segment-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 6px; margin-bottom: 8px; }
         
         .seg { 
@@ -60,7 +60,7 @@
         .seg.active { 
             background: var(--watch-color); 
             border-color: var(--watch-color);
-            box-shadow: 0 0 10px var(--watch-color); 
+            box-shadow: 0 0 8px var(--watch-color); 
         }
 
         .seg.current {
@@ -101,7 +101,7 @@
         const watchNames = ["Night Watch", "Morning Watch", "Afternoon Watch", "Evening Watch"];
         const watchColorKeys = ["night", "morning", "afternoon", "evening"];
         
-        // Generate 18 empty placeholders
+        // Build 18 segments (Progress Bar: each represents 20 mins / 2 Turns)
         const r1 = document.getElementById('row-1');
         const r2 = document.getElementById('row-2');
         for(let i=0; i<18; i++) {
@@ -116,43 +116,40 @@
             const m = now.getMinutes();
             const s = now.getSeconds();
 
-            // WATCH CALCULATION
-            // 0-5=Night, 6-11=Morning, 12-17=Afternoon, 18-23=Evening
+            // 1. WATCH Logic (6 hours per Watch)
             const watchIdx = Math.floor(h / 6);
             
-            // TURN CALCULATION (Strict 1-18 reset every 6 hours)
+            // 2. TURN Logic (1-36 per Watch)
             const minsIntoWatch = ((h % 6) * 60) + m;
             const turnNum = Math.floor(minsIntoWatch / 10) + 1; 
 
-            // Update Theme Color
-            const colorValue = `var(--${watchColorKeys[watchIdx]})`;
-            root.style.setProperty('--watch-color', colorValue);
+            // 3. UI Colors & Labels
+            root.style.setProperty('--watch-color', `var(--${watchColorKeys[watchIdx]})`);
+            document.getElementById('watch-label').innerText = watchNames[watchIdx];
+            document.getElementById('turn-label').innerText = "T-" + turnNum;
+            document.getElementById('clock').innerText = now.toLocaleTimeString([], {hour12: false});
 
-            // Turn Circle Progress (Stamina)
+            // 4. STAMINA CIRCLE (Progress of current 10-min turn)
             const secsIntoTurn = (m % 10) * 60 + s;
             const turnPercent = secsIntoTurn / 600;
             document.getElementById('stamina-circle').style.strokeDashoffset = 377 - (377 * turnPercent);
 
-            // UI Labels
-            document.getElementById('watch-label').innerText = watchNames[watchIdx];
-            document.getElementById('turn-label').innerText = "T-" + turnNum;
-            document.getElementById('clock').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
-            document.title = `T-${turnNum} | ${watchNames[watchIdx].split(' ')[0]}`;
-
-            // Segment Grid Update
+            // 5. PROGRESS SEGMENTS
+            // 18 segments total / 360 mins in a watch = 20 mins per segment
             const segments = document.querySelectorAll('.seg');
+            const currentSegIndex = Math.floor(minsIntoWatch / 20);
+
             segments.forEach((seg, i) => {
-                const segmentIndex = i + 1;
-                if (segmentIndex < turnNum) {
+                if (i < currentSegIndex) {
                     seg.className = 'seg active';
-                } else if (segmentIndex === turnNum) {
+                } else if (i === currentSegIndex) {
                     seg.className = 'seg current';
                 } else {
                     seg.className = 'seg';
                 }
             });
 
-            // Global Day Progress
+            // 6. DAY PROGRESS (24h)
             const totalSecs = (h * 3600) + (m * 60) + s;
             document.getElementById('day-bar').style.width = (totalSecs / 86400 * 100) + "%";
         }
