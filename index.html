@@ -9,31 +9,81 @@
 
     <style>
         :root {
-            --morning: #fff9c4;   /* Morning Watch: 06:00 - 12:00 */
-            --afternoon: #ffc107; /* Afternoon Watch: 12:00 - 18:00 */
-            --evening: #ff5252;   /* Evening Watch: 18:00 - 00:00 */
-            --night: #3f51b5;     /* Night Watch: 00:00 - 06:00 */
+            /* Watch Colors based on Pamphlet Cycles */
+            --morning: #fff9c4;   /* 06:00 - 12:00 */
+            --afternoon: #ffc107; /* 12:00 - 18:00 */
+            --evening: #ff5252;   /* 18:00 - 00:00 */
+            --night: #3f51b5;     /* 00:00 - 06:00 */
             --bg-dark: #0a0a0a;
             --watch-color: var(--morning);
         }
+
         body { 
             background: var(--bg-dark);
-            color: white; font-family: 'Segoe UI', sans-serif;
-            display: flex; justify-content: center; align-items: center; 
-            height: 100vh; margin: 0; overflow: hidden;
-            -webkit-app-region: drag;
-        }
-        .dashboard { 
-            text-align: center; padding: 30px; border-radius: 40px; 
-            border: 1px solid rgba(255,255,255,0.05); width: 340px;
-            background: rgba(255,255,255,0.01);
-            user-select: none;
+            color: white; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+            overflow: hidden;
+            -webkit-app-region: drag; /* Allows moving the window via the background */
         }
 
-        .stamina-container { position: relative; width: 140px; height: 140px; margin: 0 auto 30px; -webkit-app-region: no-drag; }
-        .stamina-svg { transform: rotate(-90deg); filter: drop-shadow(0 0 8px var(--watch-color)); }
+        .dashboard { 
+            text-align: center; 
+            padding: 25px; 
+            border-radius: 40px; 
+            border: 1px solid rgba(255,255,255,0.05); 
+            width: 320px;
+            background: rgba(255,255,255,0.01);
+            user-select: none;
+            position: relative;
+            transition: border 0.5s ease;
+        }
+
+        /* SCREEN SHAKE ANIMATION */
+        .shake {
+            animation: shake-kf 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake-kf {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        /* ENCOUNTER ALERT */
+        #encounter-alert {
+            font-size: 0.7rem; 
+            font-weight: bold; 
+            letter-spacing: 2px;
+            margin-bottom: 10px; 
+            height: 14px; 
+            transition: opacity 0.5s;
+            color: var(--watch-color); 
+            opacity: 0;
+        }
+
+        /* TURN CIRCLE (10 Minutes) */
+        .stamina-container { 
+            position: relative; 
+            width: 140px; 
+            height: 140px; 
+            margin: 0 auto 25px; 
+            -webkit-app-region: no-drag; 
+        }
+
+        .stamina-svg { 
+            transform: rotate(-90deg); 
+            filter: drop-shadow(0 0 8px var(--watch-color)); 
+        }
+
         circle { fill: none; stroke-width: 10; cx: 70; cy: 70; r: 60; }
         .stamina-bg { stroke: rgba(255,255,255,0.1); }
+        
         .stamina-fill { 
             stroke: var(--watch-color); 
             stroke-dasharray: 377; 
@@ -41,16 +91,36 @@
             stroke-linecap: round;
             transition: stroke 0.8s ease, stroke-dashoffset 1s linear;
         }
+
         .turn-text { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 1.2rem; font-weight: bold; color: var(--watch-color);
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%);
+            font-size: 1.2rem; 
+            font-weight: bold; 
+            color: var(--watch-color);
         }
 
-        .watch-title { font-size: 1.4rem; font-weight: 800; text-transform: uppercase; margin-bottom: 20px; color: var(--watch-color); letter-spacing: 2px; }
-        .segment-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 6px; margin-bottom: 8px; }
+        /* WATCH TITLES & GRID */
+        .watch-title { 
+            font-size: 1.3rem; 
+            font-weight: 800; 
+            text-transform: uppercase; 
+            margin-bottom: 15px; 
+            color: var(--watch-color); 
+            letter-spacing: 1px;
+        }
+
+        .segment-grid { 
+            display: grid; 
+            grid-template-columns: repeat(9, 1fr); 
+            gap: 6px; 
+            margin-bottom: 8px; 
+        }
         
         .seg { 
-            height: 14px; 
+            height: 12px; 
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 2px; 
@@ -69,14 +139,35 @@
             box-shadow: inset 0 0 5px var(--watch-color);
         }
 
-        .day-progress-container { width: 100%; height: 2px; background: #1a1a1a; border-radius: 2px; margin-top: 30px; }
-        #day-bar { height: 100%; width: 0%; background: white; opacity: 0.2; }
-        .time-readout { font-family: monospace; font-size: 0.75rem; opacity: 0.3; margin-top: 10px; }
+        /* GLOBAL PROGRESS */
+        .day-progress-container { 
+            width: 100%; 
+            height: 2px; 
+            background: #1a1a1a; 
+            border-radius: 2px; 
+            margin-top: 25px; 
+        }
+
+        #day-bar { 
+            height: 100%; 
+            width: 0%; 
+            background: white; 
+            opacity: 0.2; 
+            transition: width 1s linear;
+        }
+
+        .time-readout { 
+            font-family: monospace; 
+            font-size: 0.75rem; 
+            opacity: 0.3; 
+            margin-top: 8px; 
+        }
     </style>
 </head>
 <body>
 
-    <div class="dashboard">
+    <div class="dashboard" id="main-panel">
+        <div id="encounter-alert">ENCOUNTER CHECK</div>
         <div id="watch-label" class="watch-title">WATCH</div>
 
         <div class="stamina-container">
@@ -98,16 +189,25 @@
 
     <script>
         const root = document.documentElement;
+        const panel = document.getElementById('main-panel');
         const watchNames = ["Night Watch", "Morning Watch", "Afternoon Watch", "Evening Watch"];
         const watchColorKeys = ["night", "morning", "afternoon", "evening"];
         
-        // Build 18 segments (Progress Bar: each represents 20 mins / 2 Turns)
+        let lastEncounterTurn = -1;
+
+        // Initialize 18 segments
         const r1 = document.getElementById('row-1');
         const r2 = document.getElementById('row-2');
         for(let i=0; i<18; i++) {
             const d = document.createElement('div');
             d.className = 'seg';
             (i < 9 ? r1 : r2).appendChild(d);
+        }
+
+        function triggerShake() {
+            panel.classList.remove('shake');
+            void panel.offsetWidth; // Force reflow to restart animation
+            panel.classList.add('shake');
         }
 
         function update() {
@@ -129,13 +229,24 @@
             document.getElementById('turn-label').innerText = "T-" + turnNum;
             document.getElementById('clock').innerText = now.toLocaleTimeString([], {hour12: false});
 
-            // 4. STAMINA CIRCLE (Progress of current 10-min turn)
+            // 4. ENCOUNTER CHECK (Every 3 Turns / 30 Minutes)
+            const alert = document.getElementById('encounter-alert');
+            const isEncounterMinute = (m % 30 === 0);
+            
+            alert.style.opacity = isEncounterMinute ? "1" : "0";
+
+            // Trigger shake once at the start of the encounter minute
+            if (isEncounterMinute && lastEncounterTurn !== turnNum) {
+                triggerShake();
+                lastEncounterTurn = turnNum;
+            }
+
+            // 5. STAMINA CIRCLE (Progress of current 10-min turn)
             const secsIntoTurn = (m % 10) * 60 + s;
             const turnPercent = secsIntoTurn / 600;
             document.getElementById('stamina-circle').style.strokeDashoffset = 377 - (377 * turnPercent);
 
-            // 5. PROGRESS SEGMENTS
-            // 18 segments total / 360 mins in a watch = 20 mins per segment
+            // 6. PROGRESS SEGMENTS (20 mins each)
             const segments = document.querySelectorAll('.seg');
             const currentSegIndex = Math.floor(minsIntoWatch / 20);
 
@@ -149,7 +260,7 @@
                 }
             });
 
-            // 6. DAY PROGRESS (24h)
+            // 7. GLOBAL DAY PROGRESS
             const totalSecs = (h * 3600) + (m * 60) + s;
             document.getElementById('day-bar').style.width = (totalSecs / 86400 * 100) + "%";
         }
