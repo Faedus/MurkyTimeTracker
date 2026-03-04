@@ -1,272 +1,600 @@
+<!-- ============================================================
+     MurkyTime Tracker
+     A browser-based time tracking tool for daily tasks.
+
+     Time system (Turns, Watches, Encounter Checks) based on
+     MurkyTime by Luke Saunders (a.k.a. Murkdice).
+     https://murkdice.itch.io/
+
+     Tracker implementation: open source, free to use and modify.
+     Please retain this attribution notice.
+     ============================================================ -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MurkyTime Tracker</title>
-    
-    <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22MurkyTime%22,%22short_name%22:%22Murky%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%230a0a0a%22,%22theme_color%22:%22%230a0a0a%22}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            /* Watch Colors based on Pamphlet Cycles */
-            --morning: #fff9c4;   /* 06:00 - 12:00 */
-            --afternoon: #ffc107; /* 12:00 - 18:00 */
-            --evening: #ff5252;   /* 18:00 - 00:00 */
-            --night: #3f51b5;     /* 00:00 - 06:00 */
-            --bg-dark: #0a0a0a;
-            --watch-color: var(--morning);
+            --watch-color:     hsl(28, 60%, 58%);
+            --watch-color-dim: hsl(28, 30%, 22%);
+            --bg-dark: #070707;
         }
 
-        body { 
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
             background: var(--bg-dark);
-            color: white; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            height: 100vh; 
-            margin: 0; 
+            color: white;
+            font-family: 'DM Mono', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
             overflow: hidden;
-            -webkit-app-region: drag; /* Allows moving the window via the background */
+            -webkit-app-region: drag;
         }
 
-        .dashboard { 
-            text-align: center; 
-            padding: 25px; 
-            border-radius: 40px; 
-            border: 1px solid rgba(255,255,255,0.05); 
-            width: 320px;
-            background: rgba(255,255,255,0.01);
+        body.exhausted {
+            --watch-color:     hsl(0, 0%, 36%);
+            --watch-color-dim: hsl(0, 0%, 14%);
+        }
+        body.exhausted .dashboard { border-color: rgba(255,255,255,0.03); }
+
+        body.on-break .ring-fill {
+            animation: break-pulse 1.4s ease-in-out infinite;
+        }
+        @keyframes break-pulse {
+            0%, 100% { opacity: 0.4; }
+            50%       { opacity: 0.9; }
+        }
+
+        .dashboard {
+            text-align: center;
+            padding: 26px 28px 20px;
+            border-radius: 36px;
+            border: 1px solid rgba(255,255,255,0.07);
+            width: 330px;
+            background: rgba(255,255,255,0.012);
             user-select: none;
             position: relative;
-            transition: border 0.5s ease;
+            transition: border-color 3s ease;
         }
 
-        /* SCREEN SHAKE ANIMATION */
-        .shake {
-            animation: shake-kf 0.5s cubic-bezier(.36,.07,.19,.97) both;
-        }
-
+        .shake { animation: shake-kf 0.45s cubic-bezier(.36,.07,.19,.97) both; }
         @keyframes shake-kf {
             10%, 90% { transform: translate3d(-1px, 0, 0); }
             20%, 80% { transform: translate3d(2px, 0, 0); }
-            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-            40%, 60% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+            40%, 60% { transform: translate3d(3px, 0, 0); }
         }
 
-        /* ENCOUNTER ALERT */
-        #encounter-alert {
-            font-size: 0.7rem; 
-            font-weight: bold; 
-            letter-spacing: 2px;
-            margin-bottom: 10px; 
-            height: 14px; 
-            transition: opacity 0.5s;
-            color: var(--watch-color); 
+        #focus-alert {
+            font-size: 0.57rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 11px;
+            height: 11px;
+            transition: opacity 0.6s;
+            color: var(--watch-color);
             opacity: 0;
         }
 
-        /* TURN CIRCLE (10 Minutes) */
-        .stamina-container { 
-            position: relative; 
-            width: 140px; 
-            height: 140px; 
-            margin: 0 auto 25px; 
-            -webkit-app-region: no-drag; 
-        }
-
-        .stamina-svg { 
-            transform: rotate(-90deg); 
-            filter: drop-shadow(0 0 8px var(--watch-color)); 
-        }
-
-        circle { fill: none; stroke-width: 10; cx: 70; cy: 70; r: 60; }
-        .stamina-bg { stroke: rgba(255,255,255,0.1); }
-        
-        .stamina-fill { 
-            stroke: var(--watch-color); 
-            stroke-dasharray: 377; 
-            stroke-dashoffset: 377;
-            stroke-linecap: round;
-            transition: stroke 0.8s ease, stroke-dashoffset 1s linear;
-        }
-
-        .turn-text { 
-            position: absolute; 
-            top: 50%; 
-            left: 50%; 
-            transform: translate(-50%, -50%);
-            font-size: 1.2rem; 
-            font-weight: bold; 
+        .watch-title {
+            font-family: 'Cinzel', serif;
+            font-size: 1.05rem;
+            font-weight: 600;
+            letter-spacing: 4px;
+            margin-bottom: 16px;
             color: var(--watch-color);
+            transition: color 3s ease;
         }
 
-        /* WATCH TITLES & GRID */
-        .watch-title { 
-            font-size: 1.3rem; 
-            font-weight: 800; 
-            text-transform: uppercase; 
-            margin-bottom: 15px; 
-            color: var(--watch-color); 
+        /* ── RING ── */
+        .ring-container {
+            position: relative;
+            width: 164px;
+            height: 164px;
+            margin: 0 auto 20px;
+            -webkit-app-region: no-drag;
+        }
+
+        .ring-svg { transform: rotate(-90deg); overflow: visible; }
+
+        .ring-track {
+            fill: none;
+            stroke: rgba(255,255,255,0.06);
+            stroke-width: 10;
+        }
+
+        .ring-quarter-arc {
+            fill: none;
+            stroke: rgba(255,255,255,0.05);
+            stroke-width: 10;
+            stroke-linecap: butt;
+        }
+
+        .ring-fill {
+            fill: none;
+            stroke: var(--watch-color);
+            stroke-width: 10;
+            stroke-dasharray: 389.56; /* 2π×62 */
+            stroke-dashoffset: 389.56;
+            stroke-linecap: butt;
+            transition: stroke 3s ease, stroke-dashoffset 1s linear, filter 3s ease;
+            filter: drop-shadow(0 0 7px var(--watch-color));
+        }
+
+        /* Rest ring — outer thin halo */
+        .rest-ring-track {
+            fill: none;
+            stroke: rgba(255,255,255,0.04);
+            stroke-width: 3;
+        }
+        .rest-ring-fill {
+            fill: none;
+            stroke: var(--watch-color);
+            stroke-width: 3;
+            stroke-dasharray: 452.39; /* 2π×72 */
+            stroke-dashoffset: 0;
+            stroke-linecap: round;
+            transition: stroke 3s ease, stroke-dashoffset 1.8s ease, opacity 0.8s;
+            opacity: 0.4;
+        }
+        body.exhausted .rest-ring-fill { opacity: 0.15; }
+
+        .tick {
+            stroke: var(--bg-dark);
+            stroke-width: 2.5;
+            stroke-linecap: round;
+        }
+
+        .ring-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1px;
+        }
+
+        .turn-label {
+            font-family: 'Cinzel', serif;
+            font-weight: 700;
+            font-size: 1.25rem;
+            line-height: 1;
+            color: var(--watch-color);
+            transition: color 3s ease;
+        }
+
+        .quarter-label {
+            font-family: 'Cinzel', serif;
+            font-weight: 400;
+            font-size: 0.45rem;
+            letter-spacing: 2.5px;
+            opacity: 0.4;
+            color: var(--watch-color);
+            transition: color 3s ease, opacity 0.4s;
+        }
+
+        #break-countdown {
+            font-size: 0.5rem;
             letter-spacing: 1px;
+            color: var(--watch-color);
+            opacity: 0;
+            transition: opacity 0.4s, color 3s;
+            margin-top: 1px;
         }
+        body.on-break #break-countdown { opacity: 0.65; }
+        body.on-break .quarter-label   { opacity: 0; }
 
-        .segment-grid { 
-            display: grid; 
-            grid-template-columns: repeat(9, 1fr); 
-            gap: 6px; 
-            margin-bottom: 8px; 
+        /* ── SEGMENTS ── */
+        .seg-row {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-bottom: 5px;
         }
-        
-        .seg { 
-            height: 12px; 
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 2px; 
-            transition: all 0.4s ease; 
-        }
+        .seg-group { display: flex; gap: 4px; }
 
-        .seg.active { 
-            background: var(--watch-color); 
+        .seg {
+            width: 18px;
+            height: 10px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 2px;
+            transition: background 0.4s, border-color 0.4s, box-shadow 0.4s;
+        }
+        .seg.active {
+            background: var(--watch-color);
             border-color: var(--watch-color);
-            box-shadow: 0 0 8px var(--watch-color); 
+            box-shadow: 0 0 5px var(--watch-color);
+            transition: background 3s ease, border-color 3s ease, box-shadow 3s ease;
         }
-
         .seg.current {
+            background: rgba(255,255,255,0.09);
             border-color: var(--watch-color);
-            background: rgba(255, 255, 255, 0.15);
-            box-shadow: inset 0 0 5px var(--watch-color);
         }
 
-        /* GLOBAL PROGRESS */
-        .day-progress-container { 
-            width: 100%; 
-            height: 2px; 
-            background: #1a1a1a; 
-            border-radius: 2px; 
-            margin-top: 25px; 
+        /* ── REST RESOURCE ── */
+        .rest-section {
+            margin-top: 17px;
+            -webkit-app-region: no-drag;
         }
 
-        #day-bar { 
-            height: 100%; 
-            width: 0%; 
-            background: white; 
-            opacity: 0.2; 
+        .rest-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .rest-label {
+            font-size: 0.53rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            opacity: 0.3;
+        }
+
+        #rest-status {
+            font-size: 0.53rem;
+            letter-spacing: 1px;
+            color: var(--watch-color);
+            opacity: 0.55;
+            transition: color 3s;
+        }
+        body.exhausted #rest-status { color: hsl(0,0%,55%); opacity: 0.8; }
+
+        .rest-bar-track {
+            width: 100%;
+            height: 2px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 9px;
+        }
+
+        #rest-bar-fill {
+            height: 100%;
+            width: 100%;
+            background: var(--watch-color);
+            border-radius: 2px;
+            transition: width 1.5s ease, background 3s ease, opacity 0.8s;
+            opacity: 0.55;
+        }
+        body.exhausted #rest-bar-fill { background: hsl(0,0%,36%); opacity: 0.3; }
+
+        /* BREAK BUTTON */
+        #break-btn {
+            display: block;
+            width: 100%;
+            padding: 7px 0;
+            border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 8px;
+            background: transparent;
+            color: rgba(255,255,255,0.28);
+            font-family: 'DM Mono', monospace;
+            font-size: 0.56rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background 0.25s, color 0.25s, border-color 0.25s, opacity 0.3s;
+            -webkit-app-region: no-drag;
+        }
+        #break-btn:hover:not(:disabled) {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.6);
+            border-color: rgba(255,255,255,0.18);
+        }
+        #break-btn:disabled { opacity: 0.25; cursor: default; }
+
+        body.on-break #break-btn {
+            border-color: var(--watch-color);
+            color: var(--watch-color);
+            opacity: 0.7;
+        }
+        body.exhausted #break-btn:not(:disabled) {
+            border-color: hsl(0,0%,45%);
+            color: hsl(0,0%,55%);
+            opacity: 0.9;
+        }
+
+        /* ── DAY BAR ── */
+        .day-progress-container {
+            width: 100%;
+            height: 1px;
+            background: rgba(255,255,255,0.04);
+            margin-top: 15px;
+        }
+        #day-bar {
+            height: 100%;
+            width: 0%;
+            background: white;
+            opacity: 0.13;
             transition: width 1s linear;
         }
 
-        .time-readout { 
-            font-family: monospace; 
-            font-size: 0.75rem; 
-            opacity: 0.3; 
-            margin-top: 8px; 
+        .time-readout {
+            font-size: 0.67rem;
+            opacity: 0.18;
+            margin-top: 8px;
+            letter-spacing: 1px;
         }
     </style>
 </head>
 <body>
 
-    <div class="dashboard" id="main-panel">
-        <div id="encounter-alert">ENCOUNTER CHECK</div>
-        <div id="watch-label" class="watch-title">WATCH</div>
+<div class="dashboard" id="main-panel">
 
-        <div class="stamina-container">
-            <svg class="stamina-svg" width="140" height="140">
-                <circle class="stamina-bg"></circle>
-                <circle id="stamina-circle" class="stamina-fill"></circle>
-            </svg>
-            <div id="turn-label" class="turn-text">T-1</div>
+    <div id="focus-alert">· focus check ·</div>
+    <div id="watch-label" class="watch-title">MORNING WATCH</div>
+
+    <div class="ring-container">
+        <svg class="ring-svg" width="164" height="164" viewBox="0 0 164 164">
+            <!-- Rest halo ring (r=72) -->
+            <circle class="rest-ring-track" cx="82" cy="82" r="75"></circle>
+            <circle class="rest-ring-fill"  id="rest-ring" cx="82" cy="82" r="75"
+                    stroke-dasharray="471.24" stroke-dashoffset="0"></circle>
+
+            <!-- Turn ring (r=62) -->
+            <circle class="ring-track"       cx="82" cy="82" r="62"></circle>
+            <circle class="ring-quarter-arc" id="quarter-arc" cx="82" cy="82" r="62"></circle>
+            <circle class="ring-fill"        id="ring-fill"   cx="82" cy="82" r="62"></circle>
+
+            <!-- Quarter ticks (span both rings) -->
+            <line class="tick" x1="82"  y1="4"   x2="82"  y2="22"  />
+            <line class="tick" x1="160" y1="82"  x2="142" y2="82"  />
+            <line class="tick" x1="82"  y1="160" x2="82"  y2="142" />
+            <line class="tick" x1="4"   y1="82"  x2="22"  y2="82"  />
+
+            <!-- Quarter dots -->
+            <circle cx="82"  cy="7"   r="1.8" fill="rgba(255,255,255,0.18)" />
+            <circle cx="157" cy="82"  r="1.8" fill="rgba(255,255,255,0.18)" />
+            <circle cx="82"  cy="157" r="1.8" fill="rgba(255,255,255,0.18)" />
+            <circle cx="7"   cy="82"  r="1.8" fill="rgba(255,255,255,0.18)" />
+        </svg>
+
+        <div class="ring-center">
+            <div class="turn-label"    id="turn-label">T-1</div>
+            <div class="quarter-label" id="quarter-label">Q1 · FIRST</div>
+            <div id="break-countdown">RESTING</div>
         </div>
-
-        <div class="segment-grid" id="row-1"></div>
-        <div class="segment-grid" id="row-2"></div>
-
-        <div class="day-progress-container">
-            <div id="day-bar"></div>
-        </div>
-        <div id="clock" class="time-readout">00:00:00</div>
     </div>
 
-    <script>
-        const root = document.documentElement;
-        const panel = document.getElementById('main-panel');
-        const watchNames = ["Night Watch", "Morning Watch", "Afternoon Watch", "Evening Watch"];
-        const watchColorKeys = ["night", "morning", "afternoon", "evening"];
-        
-        let lastEncounterTurn = -1;
+    <div class="seg-row" id="seg-row-top"></div>
+    <div class="seg-row" id="seg-row-bot"></div>
 
-        // Initialize 18 segments
-        const r1 = document.getElementById('row-1');
-        const r2 = document.getElementById('row-2');
-        for(let i=0; i<18; i++) {
-            const d = document.createElement('div');
-            d.className = 'seg';
-            (i < 9 ? r1 : r2).appendChild(d);
-        }
+    <div class="rest-section">
+        <div class="rest-header">
+            <span class="rest-label">Rest</span>
+            <span id="rest-status">FULL</span>
+        </div>
+        <div class="rest-bar-track">
+            <div id="rest-bar-fill"></div>
+        </div>
+        <button id="break-btn">Take a Break  ·  1 Turn</button>
+    </div>
 
-        function triggerShake() {
-            panel.classList.remove('shake');
-            void panel.offsetWidth; // Force reflow to restart animation
-            panel.classList.add('shake');
-        }
+    <div class="day-progress-container"><div id="day-bar"></div></div>
+    <div id="clock" class="time-readout">00:00:00</div>
 
-        function update() {
-            const now = new Date();
-            const h = now.getHours();
-            const m = now.getMinutes();
-            const s = now.getSeconds();
+</div>
 
-            // 1. WATCH Logic (6 hours per Watch)
-            const watchIdx = Math.floor(h / 6);
-            
-            // 2. TURN Logic (1-36 per Watch)
-            const minsIntoWatch = ((h % 6) * 60) + m;
-            const turnNum = Math.floor(minsIntoWatch / 10) + 1; 
+<script>
+    // ── Constants ──
+    const CIRC_TURN  = 2 * Math.PI * 62;   // 389.56
+    const CIRC_REST  = 2 * Math.PI * 75;   // 471.24
+    const QUARTER    = CIRC_TURN / 4;
+    const WATCH_SECS = 6 * 3600;
+    const BREAK_SECS = 600;
 
-            // 3. UI Colors & Labels
-            root.style.setProperty('--watch-color', `var(--${watchColorKeys[watchIdx]})`);
-            document.getElementById('watch-label').innerText = watchNames[watchIdx];
-            document.getElementById('turn-label').innerText = "T-" + turnNum;
-            document.getElementById('clock').innerText = now.toLocaleTimeString([], {hour12: false});
+    // Natural-light anchors: Night → Morning → Afternoon → Evening → (back to Night)
+    const anchors = [
+        { h: 222, s: 25, l: 28 },  // Night     — dim cool indigo
+        { h:  28, s: 55, l: 55 },  // Morning   — warm amber
+        { h:  46, s: 50, l: 66 },  // Afternoon — soft gold
+        { h:  18, s: 48, l: 48 },  // Evening   — terracotta dusk
+    ];
 
-            // 4. ENCOUNTER CHECK (Every 3 Turns / 30 Minutes)
-            const alert = document.getElementById('encounter-alert');
-            const isEncounterMinute = (m % 30 === 0);
-            
-            alert.style.opacity = isEncounterMinute ? "1" : "0";
+    const watchNames   = ["Night Watch","Morning Watch","Afternoon Watch","Evening Watch"];
+    const quarterNames = ["FIRST","SECOND","THIRD","FOURTH"];
 
-            // Trigger shake once at the start of the encounter minute
-            if (isEncounterMinute && lastEncounterTurn !== turnNum) {
-                triggerShake();
-                lastEncounterTurn = turnNum;
-            }
+    // ── State ──
+    let lastFocusMin  = -1;
+    let restPct       = 1.0;
+    let onBreak       = false;
+    let breakLeft     = 0;
+    let lastTick      = Date.now();
 
-            // 5. STAMINA CIRCLE (Progress of current 10-min turn)
-            const secsIntoTurn = (m % 10) * 60 + s;
-            const turnPercent = secsIntoTurn / 600;
-            document.getElementById('stamina-circle').style.strokeDashoffset = 377 - (377 * turnPercent);
-
-            // 6. PROGRESS SEGMENTS (20 mins each)
-            const segments = document.querySelectorAll('.seg');
-            const currentSegIndex = Math.floor(minsIntoWatch / 20);
-
-            segments.forEach((seg, i) => {
-                if (i < currentSegIndex) {
-                    seg.className = 'seg active';
-                } else if (i === currentSegIndex) {
-                    seg.className = 'seg current';
-                } else {
-                    seg.className = 'seg';
+    // ── Build segments ──
+    const segGroups = [];
+    [document.getElementById('seg-row-top'), document.getElementById('seg-row-bot')]
+        .forEach(row => {
+            for (let g = 0; g < 2; g++) {
+                const grp = document.createElement('div');
+                grp.className = 'seg-group';
+                const segs = [];
+                for (let s = 0; s < 4; s++) {
+                    const el = document.createElement('div');
+                    el.className = 'seg';
+                    grp.appendChild(el);
+                    segs.push(el);
                 }
-            });
+                segGroups.push({ grp, segs });
+                row.appendChild(grp);
+            }
+        });
 
-            // 7. GLOBAL DAY PROGRESS
-            const totalSecs = (h * 3600) + (m * 60) + s;
-            document.getElementById('day-bar').style.width = (totalSecs / 86400 * 100) + "%";
+    // ── DOM ──
+    const root        = document.documentElement;
+    const body        = document.body;
+    const panel       = document.getElementById('main-panel');
+    const ringFill    = document.getElementById('ring-fill');
+    const restRing    = document.getElementById('rest-ring');
+    const qArc        = document.getElementById('quarter-arc');
+    const turnLbl     = document.getElementById('turn-label');
+    const quarterLbl  = document.getElementById('quarter-label');
+    const breakCnt    = document.getElementById('break-countdown');
+    const watchLbl    = document.getElementById('watch-label');
+    const focusAlert  = document.getElementById('focus-alert');
+    const dayBar      = document.getElementById('day-bar');
+    const clockEl     = document.getElementById('clock');
+    const restBarFill = document.getElementById('rest-bar-fill');
+    const restStatus  = document.getElementById('rest-status');
+    const breakBtn    = document.getElementById('break-btn');
+
+    // ── Utils ──
+    function shake() {
+        panel.classList.remove('shake');
+        void panel.offsetWidth;
+        panel.classList.add('shake');
+    }
+
+    function lerpAngle(a, b, t) {
+        let d = b - a;
+        if (d >  180) d -= 360;
+        if (d < -180) d += 360;
+        return a + d * t;
+    }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    function applyColor(h, s, l) {
+        root.style.setProperty('--watch-color',     `hsl(${h.toFixed(1)},${s.toFixed(1)}%,${l.toFixed(1)}%)`);
+        root.style.setProperty('--watch-color-dim', `hsl(${h.toFixed(1)},${(s*.45).toFixed(1)}%,${(l*.4).toFixed(1)}%)`);
+    }
+
+    // ── Break button ──
+    breakBtn.addEventListener('click', () => {
+        if (onBreak) return;
+        onBreak   = true;
+        breakLeft = BREAK_SECS;
+        body.classList.add('on-break');
+        body.classList.remove('exhausted');
+        breakBtn.disabled = true;
+    });
+
+    // ── Per-second tick ──
+    function tick() {
+        const now   = Date.now();
+        const delta = Math.min((now - lastTick) / 1000, 5); // cap at 5s for tab-resume
+        lastTick    = now;
+
+        if (onBreak) {
+            breakLeft -= delta;
+            if (breakLeft <= 0) {
+                onBreak   = false;
+                restPct   = 1.0;
+                breakLeft = 0;
+                body.classList.remove('on-break', 'exhausted');
+                breakBtn.disabled = false;
+                breakBtn.textContent = 'Take a Break  ·  1 Turn';
+                breakCnt.textContent = 'RESTING';
+            } else {
+                const m = Math.floor(breakLeft / 60);
+                const s = Math.floor(breakLeft % 60);
+                breakCnt.textContent = `${m}:${s.toString().padStart(2,'0')} remaining`;
+                breakBtn.textContent = `Resting…`;
+            }
+        } else {
+            restPct = Math.max(0, restPct - delta / WATCH_SECS);
+        }
+    }
+
+    // ── Main update ──
+    function update() {
+        tick();
+
+        const now  = new Date();
+        const h    = now.getHours();
+        const m    = now.getMinutes();
+        const s    = now.getSeconds();
+
+        const watchIdx      = Math.floor(h / 6);
+        const minsIntoWatch = (h % 6) * 60 + m;
+        const turnNum       = Math.min(Math.floor(minsIntoWatch / 10) + 1, 36);
+        const quarterIdx    = Math.floor(minsIntoWatch / 90);
+
+        // Color
+        if (!body.classList.contains('exhausted')) {
+            const t = minsIntoWatch / 360;
+            const a = anchors[watchIdx];
+            const b = anchors[(watchIdx + 1) % 4];
+            applyColor(
+                lerpAngle(a.h, b.h, t),
+                lerp(a.s, b.s, t),
+                lerp(a.l, b.l, t)
+            );
         }
 
-        setInterval(update, 1000);
-        update();
-    </script>
+        // Exhaustion gate
+        if (restPct <= 0 && !onBreak) body.classList.add('exhausted');
+
+        // Labels
+        watchLbl.innerText  = watchNames[watchIdx];
+        turnLbl.innerText   = turnNum + "/36";
+        quarterLbl.innerText = `Q${quarterIdx+1} · ${quarterNames[quarterIdx]}`;
+        clockEl.innerText   = now.toLocaleTimeString([], { hour12: false });
+
+        // Focus check
+        const absMin  = h * 60 + m;
+        const isFocus = (minsIntoWatch % 30 === 0);
+        focusAlert.style.opacity = isFocus ? "1" : "0";
+        if (isFocus && lastFocusMin !== absMin) { shake(); lastFocusMin = absMin; }
+
+        // Turn ring
+        const secsIntoTurn = (m % 10) * 60 + s;
+        if (!onBreak) {
+            ringFill.style.strokeDasharray  = String(CIRC_TURN);
+            ringFill.style.strokeDashoffset = CIRC_TURN - CIRC_TURN * (secsIntoTurn / 600);
+        } else {
+            const bp = breakLeft / BREAK_SECS;
+            ringFill.style.strokeDasharray  = `${CIRC_TURN * bp} ${CIRC_TURN}`;
+            ringFill.style.strokeDashoffset = '0';
+        }
+
+        // Rest halo ring
+        const restCirc = CIRC_REST;
+        restRing.setAttribute('stroke-dasharray',  String(restCirc));
+        restRing.style.strokeDashoffset = restCirc * (1 - restPct);
+
+        // Rest bar
+        restBarFill.style.width = (restPct * 100).toFixed(1) + '%';
+        const pct = Math.round(restPct * 100);
+        restStatus.textContent = onBreak       ? 'RESTING'
+                               : restPct <= 0  ? 'EXHAUSTED'
+                               : pct < 25      ? 'LOW'
+                               : pct < 70      ? pct + '%'
+                               :                 'FULL';
+
+        // Quarter arc
+        qArc.setAttribute('stroke-dasharray',  `${QUARTER} ${CIRC_TURN}`);
+        qArc.setAttribute('stroke-dashoffset', -(CIRC_TURN * quarterIdx / 4));
+
+        // Segments (16 × 22.5 min)
+        const doneSeg = Math.floor(minsIntoWatch / 22.5);
+        segGroups.forEach(({ segs }, gi) =>
+            segs.forEach((seg, si) => {
+                const i = gi * 4 + si;
+                seg.className = i < doneSeg ? 'seg active' : i === doneSeg ? 'seg current' : 'seg';
+            })
+        );
+
+        // Day bar
+        dayBar.style.width = ((h * 3600 + m * 60 + s) / 86400 * 100) + '%';
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) { lastTick = Date.now(); update(); }
+    });
+
+    setInterval(update, 1000);
+    update();
+</script>
 </body>
 </html>
