@@ -326,16 +326,75 @@
             margin-top: 8px;
             letter-spacing: 1px;
         }
+
+        /* ── TOOLTIPS ── */
+        [data-tip] { position: relative; }
+        [data-tip]::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            background: rgba(10,10,10,0.93);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.65);
+            font-family: 'DM Mono', monospace;
+            font-size: 0.53rem;
+            letter-spacing: 0.8px;
+            line-height: 1.6;
+            white-space: pre;
+            text-align: center;
+            padding: 7px 12px;
+            border-radius: 6px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.18s ease, transform 0.18s ease;
+            z-index: 100;
+        }
+        [data-tip]::before {
+            content: '';
+            position: absolute;
+            bottom: calc(100% + 3px);
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            border: 5px solid transparent;
+            border-top-color: rgba(255,255,255,0.1);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.18s ease, transform 0.18s ease;
+            z-index: 101;
+        }
+        [data-tip]:hover::after,
+        [data-tip]:hover::before {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .tip-below::after {
+            bottom: auto;
+            top: calc(100% + 8px);
+            transform: translateX(-50%) translateY(-4px);
+        }
+        .tip-below::before {
+            bottom: auto;
+            top: calc(100% + 3px);
+            transform: translateX(-50%) translateY(-4px);
+            border-top-color: transparent;
+            border-bottom-color: rgba(255,255,255,0.1);
+        }
+        .tip-below:hover::after,
+        .tip-below:hover::before {
+            transform: translateX(-50%) translateY(0);
+        }
     </style>
 </head>
 <body>
 
 <div class="dashboard" id="main-panel">
 
-    <div id="focus-alert">· focus check ·</div>
-    <div id="watch-label" class="watch-title">MORNING WATCH</div>
+    <div id="focus-alert" data-tip="Every 30 min — are you on task?">· focus check ·</div>
+    <div id="watch-label" class="watch-title" data-tip="Current Watch — 6 hour block&#10;Morning · Afternoon · Evening · Night">MORNING WATCH</div>
 
-    <div class="ring-container">
+    <div class="ring-container" data-tip="Inner ring — progress through&#10;the current 10-min Turn">
         <svg class="ring-svg" width="164" height="164" viewBox="0 0 164 164">
             <!-- Rest halo ring (r=72) -->
             <circle class="rest-ring-track" cx="82" cy="82" r="75"></circle>
@@ -361,28 +420,28 @@
         </svg>
 
         <div class="ring-center">
-            <div class="turn-label"    id="turn-label">T-1</div>
-            <div class="quarter-label" id="quarter-label">Q1 · FIRST</div>
-            <div id="break-countdown">RESTING</div>
+            <div class="turn-label"    id="turn-label"    data-tip="Current Turn / 36 total&#10;1 Turn = 10 minutes">T-1</div>
+            <div class="quarter-label" id="quarter-label" data-tip="Quarter of the Watch&#10;1 quarter = 90 minutes">Q1 · FIRST</div>
+            <div id="break-countdown" data-tip="Break in progress&#10;Rest restores on completion">RESTING</div>
         </div>
     </div>
 
-    <div class="seg-row" id="seg-row-top"></div>
+    <div class="seg-row" id="seg-row-top" data-tip="Watch progress — 16 segments&#10;Each segment = 22.5 minutes&#10;4 segments per quarter"></div>
     <div class="seg-row" id="seg-row-bot"></div>
 
     <div class="rest-section">
         <div class="rest-header">
-            <span class="rest-label">Rest</span>
+            <span class="rest-label" data-tip="Outer ring + bar&#10;Drains over 1 Watch (6 hrs)&#10;Take a break to restore">Rest</span>
             <span id="rest-status">FULL</span>
         </div>
         <div class="rest-bar-track">
             <div id="rest-bar-fill"></div>
         </div>
-        <button id="break-btn">Take a Break  ·  1 Turn</button>
+        <button id="break-btn" data-tip="Starts a 10-min break&#10;Rest fully restores on completion&#10;UI greys out when exhausted">Take a Break  ·  1 Turn</button>
     </div>
 
-    <div class="day-progress-container"><div id="day-bar"></div></div>
-    <div id="clock" class="time-readout">00:00:00</div>
+    <div class="day-progress-container tip-below" data-tip="Day progress — 24 hours"><div id="day-bar"></div></div>
+    <div id="clock" class="time-readout tip-below" data-tip="Current time">00:00:00</div>
 
 </div>
 
